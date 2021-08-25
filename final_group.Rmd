@@ -1,0 +1,447 @@
+---
+title: "final project:adult_income"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  html_notebook:
+    number_sections: yes
+    toc: yes
+  word_document:
+    toc: yes
+---
+
+# dataset come from: https://www.kaggle.com/serpilturanyksel/adult-income
+
+```{r}
+rm(list = ls())     # clear the workspace 
+library(ISLR)       # load ISLR data package
+library(tidyverse)
+library(ggplot2)
+library(plyr)
+
+```
+
+
+```{r}
+
+adult_ori<-read.csv("adult11.csv")
+
+
+adult_ori$native.country <- NULL
+adult_ori$fnlwgt<- NULL
+adult_ori$education<- NULL
+adult_ori$relationship<- NULL
+
+adult<-adult_ori
+
+adult<-adult%>%
+  filter(workclass!="?")
+
+adult<-adult%>%
+  filter(occupation!="?")
+
+adult<-adult%>%
+  mutate(
+        workclass=as.factor(workclass),
+        marital.status=as.factor(marital.status),
+        occupation=as.factor(occupation),
+         race=as.factor(race),
+         gender=as.factor(gender),
+         salary=as.factor(salary)
+         )
+adult
+
+```
+
+
+```{r}
+
+
+# frequency table 
+summary(adult$salary)   # summary of default variable
+
+table(adult$salary)     # contingency table: frequency of each case (yes/no) in default variable
+table(adult$age)     # contingency table: frequency of each case (yes/no) in student variable
+table(adult$salary,adult$age)  # cross-tabulation
+
+table(adult$workclass)
+
+ggplot(adult) + aes(x=age, group=salary, fill=salary) + geom_histogram(binwidth=2, color='black')
+ggplot(adult) + aes(x=age, group=gender, fill=gender) + geom_histogram(binwidth=2, color='black')
+ggplot(adult) + aes(x=age, group=race, fill=race) + geom_histogram(binwidth=2, color='black')
+```
+
+#data cleaning
+```{r}
+table(adult$workclass)
+test<-adult
+
+table(test$workclass)
+
+test$workclass <- gsub('^Federal-gov', 'Government', test$workclass)
+test$workclass <- gsub('^Local-gov', 'Government', test$workclass)
+test$workclass <- gsub('^State-gov', 'Government', test$workclass) 
+table(test$workclass)
+
+test$workclass <- gsub('^Private', 'notGovernment', test$workclass)
+test$workclass <- gsub('^Self-emp-inc', 'notGovernment', test$workclass)
+test$workclass <- gsub('^Self-emp-not-inc', 'notGovernment', test$workclass)
+table(test$workclass)
+
+test$workclass <- gsub('^Without-pay', 'other', test$workclass)
+test$workclass <- gsub('^Never-worked', 'other', test$workclass)
+
+test$workclass
+adult$workclass <-test$workclass
+
+```
+
+#
+## bar - Income by Industry
+```{r}
+count <- table(adult[adult$workclass == 'Government',]$salary)["<=50K"]
+count <- c(count, table(adult[adult$workclass == 'Government',]$salary)[">50K"])
+
+
+count <- c(count, table(adult[adult$workclass == 'notGovernment',]$salary)["<=50K"])
+count <- c(count, table(adult[adult$workclass == 'notGovernment',]$salary)[">50K"])
+
+count <- c(count, table(adult[adult$workclass == 'other',]$salary)["<=50K"])
+count <- c(count, table(adult[adult$workclass == 'other',]$salary)[">50K"])
+
+count <- as.numeric(count)
+count
+
+industry <- rep(c('Government','notGovernment','other'),each=2)
+industry
+
+income <- rep(c('<=50K', '>50K'), 3)
+
+df <- data.frame(industry,income, count)
+
+df <- ddply(df, .(industry), transform, percent = count/sum(count) * 100)
+df$label <- paste0(sprintf("%.0f", df$percent), "%")
+
+ggplot(df, aes(x = industry, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), size = 2,check_overlap = TRUE,position = position_stack(vjust = 0.5)) + 
+  ggtitle('Income by Industry')
+
+```
+
+## bar - Income Level with Years of Education
+```{r}
+test1<-adult
+df1 <- data.frame(table(test1$salary, test1$education.num))
+names(df1) <- c('income', 'education_num', 'count')
+library(plyr)
+df1 <- ddply(df1, .(education_num), transform, percent = count/sum(count) * 100)
+
+df1$label <- paste0(sprintf("%.0f", df1$percent), "%")
+
+ggplot(df1, aes(x = education_num, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), size = 3,check_overlap = TRUE,position = position_stack(vjust = 0.5)) + 
+  ggtitle('Income Level with Years of Education')
+
+
+
+
+```
+
+## occupation cleaning 
+```{r}
+
+table(adult$occupation)
+test1<-adult
+table(test1$occupation)
+
+test1$occupation <- gsub('Adm-clerical', 'White-Collar', test1$occupation)
+test1$occupation <- gsub('Craft-repair', 'Blue-Collar', test1$occupation)
+test1$occupation <- gsub('Exec-managerial', 'White-Collar', test1$occupation)
+test1$occupation <- gsub('Farming-fishing', 'Blue-Collar', test1$occupation)
+test1$occupation <- gsub('Handlers-cleaners', 'Blue-Collar', test1$occupation)
+test1$occupation <- gsub('Machine-op-inspct', 'Blue-Collar', test1$occupation)
+test1$occupation <- gsub('Other-service', 'Service', test1$occupation)
+test1$occupation <- gsub('Priv-house-serv', 'Service', test1$occupation)
+test1$occupation <- gsub('Prof-specialty', 'Professional', test1$occupation)
+test1$occupation <- gsub('Protective-serv', 'Service', test1$occupation)
+test1$occupation <- gsub('Tech-support', 'Service', test1$occupation)
+test1$occupation <- gsub('Transport-moving', 'Blue-Collar', test1$occupation)
+test1$occupation <- gsub('Unknown', 'Other/Unknown', test1$occupation)
+test1$occupation <- gsub('Armed-Forces', 'Other/Unknown', test1$occupation)
+
+table(test1$occupation)
+
+adult$occupation <-test1$occupation
+
+adult$occupation <- as.factor(adult$occupation)
+table(adult$occupation)
+```
+
+## bar- Income Level with Different Occupations
+```{r}
+df2 <- data.frame(table(adult$salary, adult$occupation))
+names(df2) <- c('income', 'occupation', 'count')
+df2
+
+df2 <- ddply(df2, .(occupation), transform, percent = count/sum(count) * 100)
+
+df2 <- ddply(df2, .(occupation), transform)
+df2$label <- paste0(sprintf("%.0f", df2$percent), "%")
+
+
+df2$label[df2$occupation == 'Other/Unknown'] <- NA
+
+# bar plot of counts by occupation with in group proportions 
+ggplot(df2, aes(x = occupation, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), size = 2,check_overlap = TRUE,position = position_stack(vjust = 0.5)) + 
+  ggtitle('Income Level with Different Occupations')
+```
+## marital.status cleaning 
+```{r}
+adult
+table(adult$marital.status)
+test3<-adult
+table(test3$marital.status)
+
+
+test3$marital.status <- gsub('Married-AF-spouse', 'Married', test3$marital.status)
+test3$marital.status <- gsub('Married-civ-spouse', 'Married', test3$marital.status)
+test3$marital.status <- gsub('Married-spouse-absent', 'Married', test3$marital.status)
+test3$marital.status <- gsub('Never-married', 'Single', test3$marital.status)
+table(test3$marital.status)
+
+adult$marital.status<-test3$marital.status
+adult$marital.status <- as.factor(adult$marital.status)
+
+table(adult$marital.status)
+
+```
+##bar - Income Level with Marital Status
+```{r}
+
+df3 <- data.frame(table(adult$salary, adult$marital.status))
+names(df3) <- c('income', 'marital.status', 'count')
+df3
+
+df3 <- ddply(df3, .(marital.status), transform, percent = count/sum(count) * 100)
+
+# format the labels and calculate their positions
+df3 <- ddply(df3, .(marital.status), transform)
+df3$label <- paste0(sprintf("%.0f", df3$percent), "%")
+
+# bar plot of counts by marital status with in group proportions 
+ggplot(df3, aes(x = marital.status, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), size = 2,check_overlap = TRUE,position = position_stack(vjust = 0.5)) + 
+  ggtitle('Income Level with Marital Status')
+```
+
+## capital gain & capital.loss 
+```{r}
+ggplot(adult) + aes(x=as.numeric(capital.gain), group=salary, fill=salary) + 
+  geom_histogram(bins=10, color='black') + ggtitle('Histogram of Capital Gain')
+
+ggplot(adult) + aes(x=as.numeric(capital.loss), group=salary, fill=salary) + 
+  geom_histogram(bins=10, color='black') + ggtitle('Histogram of Capital Loss')
+
+sum(adult$capital.gain == 0)/length(adult$capital.gain)
+sum(adult$capital.loss == 0)/length(adult$capital.loss)
+
+adult$capital.gain <- NULL
+adult$capital.loss <- NULL
+adult
+
+
+
+```
+
+```{r}
+df4 <- data.frame(table(adult$salary, adult$race))
+names(df4) <- c('income', 'race', 'count')
+df4
+
+df4 <- ddply(df4, .(race), transform, percent = count/sum(count) * 100)
+
+
+df4 <- ddply(df4, .(race), transform)
+df4$label <- paste0(sprintf("%.0f", df4$percent), "%")
+
+df4$label[df4$race == 'Other'] <- NA
+df4$label[df4$race == 'Amer-Indian-Eskimo'] <- NA
+
+ggplot(df4, aes(x = race, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), size = 2, check_overlap = TRUE,position = position_stack(vjust = 0.5)) + 
+  ggtitle('Income Level by Race')
+
+```
+
+##model fitting
+```{r}
+
+adult
+summary(adult)
+
+index <- sample(nrow(adult), nrow(adult)*0.2) # random selection of indices. 
+testing <- adult[index,]       # save 20% as a test dataset
+training <-adult[-index,]   # save the rest as a training set
+
+training
+#age+workclass+education.num+marital.status+occupation+relationship+race+gender+hours.per.week
+m1 <- glm(salary ~ ., 
+          data = training, 
+          family = binomial('logit'))
+summary(m1)
+
+```
+
+
+
+```{r}
+confint(m1)
+
+```
+
+
+## Logistic Regression
+```{r}
+m_full <- m1  
+m_null <- glm(salary ~ 1, data = training, family = binomial('logit'))
+
+# backward selection
+step(m_full, trace = F, scope = list(lower=formula(m_null), upper=formula(m_full)),
+     direction = 'backward')
+
+# forward selection
+step(m_null, trace = F, scope = list(lower=formula(m_null), upper=formula(m_full)),
+     direction = 'forward')
+```
+
+
+```{r}
+# create a data frame to store information regarding deviance residuals
+index <- 1:dim(training)[1]
+dev_resid <- residuals(m1)
+income <- training$salary
+dff <- data.frame(index, dev_resid, income)
+
+ggplot(dff, aes(x = index, y = dev_resid, color = income)) +
+  geom_point() + 
+  geom_hline(yintercept = 3, linetype = 'dashed', color = 'blue') +
+  geom_hline(yintercept = -3, linetype = 'dashed', color = 'blue')+
+  ggtitle('Plot of Deviance Residuals')
+ 
+```
+
+
+```{r}
+prob <- predict(m1, testing, type = 'response')
+pred <- rep('<=50K', length(prob))
+pred[prob>=.5] <- '>50K'
+# confusion matrix 
+tb <- table(pred, testing$salary)
+tb
+
+
+```
+
+#6862 1104
+#585 1217
+
+## randomForest
+```{r}
+library(randomForest)
+rf_model <- randomForest(salary ~ ., data = training, ntree = 500)
+
+rf_model.pred.prob <- predict(rf_model, newdata = testing, type = 'prob')
+
+rf_model.pred <- predict(rf_model, newdata = testing, type = 'class')
+
+# confusion matrix 
+tb2 <- table(rf_model.pred, testing$salary)
+tb2
+
+```
+#6885 1061
+#562  1260
+
+##classification Tree
+```{r}
+library(rpart)
+library(rpart.plot) 
+
+ct_model<-rpart(salary~.,           # model formula
+                data=training,                             # dataset
+                method="class",                           # "class" indicates a classification tree model 
+                control=rpart.control(cp=0,maxdepth=3))   # tree control parameters. 
+
+
+ct_model.pred.prob <- predict(ct_model, newdata = testing, type = 'prob')
+ct_model.pred <- predict(ct_model, newdata = testing, type = 'class')
+# confusion matrix 
+tb3 <- table(ct_model.pred, testing$salary)
+tb3
+
+rpart.plot(ct_model)
+```
+#7032 1370
+#415 951
+
+
+## Support Vector Machine (SVM)
+```{r}
+
+library(e1071)
+model_svm<-svm(formula= salary ~ ., # model formula 
+               data=training,                   # dataset
+               kernel="radial",  # this is the form of the decision boundary. Let's start with a linear kernel. 
+               cost=0.1,
+               probability = TRUE)        # there are paremeters that are used to tune the model 
+
+
+model_svm.pred.prob <-predict(model_svm, newdata = testing, type = 'decision',probability = TRUE)
+model_svm.pred <- predict(model_svm, newdata = testing, type = 'response')
+
+svm_dv<-attr(predict(model_svm, testing, decision.values = TRUE),"decision.values")
+
+
+testing$svm_pred_class <- predict(model_svm, testing) 
+testing$svm_dv<-as.numeric(attr(predict(model_svm, testing, decision.values = TRUE),"decision.values"))
+
+
+
+```
+
+
+
+
+
+
+#6849 1137 
+# 531 1260
+```{r}
+library(pROC)
+#logit
+logit_roc<-roc(testing$salary,prob,auc=TRUE)
+plot(logit_roc,print.auc=TRUE,col="red",,print.auc.y = .1)
+
+#RF
+rf_roc<-roc(testing$salary,rf_model.pred.prob[,2],auc=TRUE)
+plot(rf_roc,print.auc=TRUE,col="black",add=TRUE,,print.auc.y = .2)
+
+#CT
+ct_roc<-roc(testing$salary,ct_model.pred.prob[,2],auc = TRUE)
+plot(ct_roc,print.auc=TRUE,col="green",add=TRUE,,print.auc.y = .3)
+
+table(ct_model.pred.prob[,2])
+
+#SVM
+svm_roc<-roc(testing$salary,testing$svm_dv, auc=TRUE)
+plot(svm_roc,print.auc=TRUE,col="orange", add=TRUE,,print.auc.y = .4)
+
+
+```
